@@ -8,6 +8,14 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Interactive Mercator Map",
   description: "Explore the world with an interactive Mercator projection map",
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
+  openGraph: {
+    images: '/cover.png',
+  },
 }
 
 export default function RootLayout({
