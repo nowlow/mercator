@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { useMobile } from "@/hooks/use-mobile"
 
 // Define types for our geographic data
 type TopoJSON = {
@@ -155,11 +156,14 @@ const colorThemes = {
 type ThemeKey = keyof typeof colorThemes
 
 export default function MercatorMap() {
+  const isMobile = useMobile()
+
   // Refs for DOM elements
   const svgRef = useRef<SVGSVGElement>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<boolean>(false)
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null)
+  const lastTouchPosRef = useRef<{ x: number; y: number } | null>(null)
   const urlUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // State for map properties
@@ -391,9 +395,10 @@ export default function MercatorMap() {
         const viewportHeight = window.innerHeight
 
         // Calculate the maximum size that fits in the viewport
-        // Leave some margin for the controls
-        const maxWidth = viewportWidth - 40
-        const maxHeight = viewportHeight - 40
+        // Leave more margin for mobile devices
+        const margin = isMobile ? 20 : 40
+        const maxWidth = viewportWidth - margin
+        const maxHeight = viewportHeight - margin
 
         // Set dimensions to fill the available space
         setWidth(maxWidth)
@@ -407,7 +412,7 @@ export default function MercatorMap() {
     return () => {
       window.removeEventListener("resize", handleResize)
     }
-  }, [])
+  }, [isMobile])
 
   // Load geographic data on component mount
   useEffect(() => {
@@ -462,6 +467,67 @@ export default function MercatorMap() {
       svg.removeEventListener("mousedown", handleMouseDown)
       window.removeEventListener("mousemove", handleMouseMove)
       window.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [position])
+
+  // Touch event handling
+  useEffect(() => {
+    if (!svgRef.current) return
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        // Single touch - start drag
+        dragRef.current = true
+        lastTouchPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        setIsDragging(true)
+
+        // Prevent default to avoid scrolling the page
+        e.preventDefault()
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!dragRef.current || !lastTouchPosRef.current) return
+
+      if (e.touches.length === 1) {
+        // Single touch - drag
+        const dx = e.touches[0].clientX - lastTouchPosRef.current.x
+        const dy = e.touches[0].clientY - lastTouchPosRef.current.y
+
+        // Calculate new position based on drag distance
+        // Use a slightly higher scale for touch to make it more responsive
+        const scale = 0.3
+        const newLongitude = position[0] - dx * scale
+        const newLatitude = position[1] + dy * scale
+
+        // Update position
+        setPosition([newLongitude, newLatitude])
+
+        // Update last touch position
+        lastTouchPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+
+        // Prevent default to avoid scrolling the page
+        e.preventDefault()
+      }
+    }
+
+    const handleTouchEnd = () => {
+      dragRef.current = false
+      lastTouchPosRef.current = null
+      setIsDragging(false)
+    }
+
+    const svg = svgRef.current
+    svg.addEventListener("touchstart", handleTouchStart, { passive: false })
+    svg.addEventListener("touchmove", handleTouchMove, { passive: false })
+    svg.addEventListener("touchend", handleTouchEnd)
+    svg.addEventListener("touchcancel", handleTouchEnd)
+
+    return () => {
+      svg.removeEventListener("touchstart", handleTouchStart)
+      svg.removeEventListener("touchmove", handleTouchMove)
+      svg.removeEventListener("touchend", handleTouchEnd)
+      svg.removeEventListener("touchcancel", handleTouchEnd)
     }
   }, [position])
 
@@ -570,6 +636,9 @@ export default function MercatorMap() {
   // Get current theme colors
   const currentTheme = colorThemes[theme]
 
+  // Determine globe widget size based on screen size
+  const globeSize = isMobile ? 60 : 80
+
   return (
     <div
       className="relative w-full h-screen flex items-center justify-center"
@@ -595,6 +664,7 @@ export default function MercatorMap() {
               borderColor: currentTheme.uiAccent,
               borderWidth: "1px",
               borderStyle: "solid",
+              fontSize: isMobile ? "0.75rem" : "0.875rem",
             }}
           >
             Your position: {normalizedLongitude.toFixed(2)}°, {position[1].toFixed(2)}°
@@ -603,13 +673,13 @@ export default function MercatorMap() {
 
         {/* Globe widget */}
         <div className="absolute top-4 right-4">
-          <GlobeWidget position={position} size={80} theme={colorThemes[theme]} />
+          <GlobeWidget position={position} size={globeSize} theme={colorThemes[theme]} />
         </div>
 
         {/* Menu toggle button */}
         <Button
           variant="outline"
-          size="icon"
+          size={isMobile ? "sm" : "icon"}
           className="absolute top-4 left-4 shadow-sm z-50"
           onClick={() => setShowMenu(!showMenu)}
           style={{
@@ -618,13 +688,17 @@ export default function MercatorMap() {
             borderColor: currentTheme.uiAccent,
           }}
         >
-          {showMenu ? <X className="h-4 w-4" /> : <MenuIcon className="h-4 w-4" />}
+          {showMenu ? (
+            <X className={isMobile ? "h-3 w-3" : "h-4 w-4"} />
+          ) : (
+            <MenuIcon className={isMobile ? "h-3 w-3" : "h-4 w-4"} />
+          )}
         </Button>
 
         {/* Controls menu */}
         {showMenu && (
           <div
-            className="absolute top-16 left-4 p-4 rounded-md shadow-md max-w-xs z-50"
+            className="absolute top-16 left-4 p-4 rounded-md shadow-md z-50"
             style={{
               backgroundColor: currentTheme.uiMenuBg,
               color: currentTheme.uiText,
@@ -633,6 +707,8 @@ export default function MercatorMap() {
               borderStyle: "solid",
               position: "absolute",
               display: "block",
+              maxWidth: isMobile ? "calc(100vw - 32px)" : "320px",
+              width: isMobile ? "calc(100vw - 32px)" : "auto",
             }}
           >
             <div className="space-y-4">

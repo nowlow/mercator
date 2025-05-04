@@ -1,18 +1,13 @@
-import type { Metadata } from 'next'
-import './globals.css'
+import type React from "react"
+import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import "./globals.css"
+
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: 'Mercator map projector',
-  description: 'View the classic mercator projection from an other angle',
-  generator: 'v0.dev',
-  icons: {
-    icon: '/icon.png',
-    shortcut: '/icon.png',
-    apple: '/icon.png',
-  },
-  openGraph: {
-    images: '/cover.png',
-  },
+  title: "Interactive Mercator Map",
+  description: "Explore the world with an interactive Mercator projection map",
 }
 
 export default function RootLayout({
@@ -22,7 +17,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      </head>
+      <body className={inter.className}>{children}</body>
     </html>
   )
 }
